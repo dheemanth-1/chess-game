@@ -21,6 +21,10 @@ export class ChessBoard {
   private _safeSquares: SafeSquares;
   private _lastMove: LastMove | undefined;
   private _checkState: CheckState = { isInCheck: false };
+  private fiftyMoveCounter: number = 0;
+
+  private _isGameOver: boolean = false;
+  private _gameOverMessage: string | undefined;
 
   constructor() {
     this.chessBoard = [
@@ -88,7 +92,15 @@ export class ChessBoard {
     return this._checkState;
   }
 
-  public get chessBoarrdView(): (FENChar | null)[][] {
+  public get gameOverMessage(): string | undefined {
+    return this._gameOverMessage;
+  }
+
+  public get isGameOver(): boolean {
+    return this._isGameOver;
+  }
+
+  public get chessBoardView(): (FENChar | null)[][] {
     return this.chessBoard.map((row) => {
       return row.map((piece) =>
         piece instanceof Piece ? piece.FENChar : null
@@ -346,6 +358,9 @@ export class ChessBoard {
     newY: number,
     promotedPieceType: FENChar | null = null
   ): void {
+    if (this._isGameOver)
+      throw new Error('Game is over, you cannot play move!');
+
     if (!this.areCoordsValid(prevX, prevY) || !this.areCoordsValid(newX, newY))
       return;
     const piece: Piece | null = this.chessBoard[prevX][prevY];
@@ -368,6 +383,10 @@ export class ChessBoard {
     )
       piece.hasMoved = true;
 
+    const isPieceTaken = this.chessBoard[newX][newY] != null;
+    if (piece instanceof Pawn || isPieceTaken) this.fiftyMoveCounter = 0;
+    else this.fiftyMoveCounter += 0.5;
+
     this.handlingSpecialMoves(piece, prevX, prevY, newX, newY);
     // update the board
     if (promotedPieceType) {
@@ -384,6 +403,7 @@ export class ChessBoard {
       this._playerColor === Color.White ? Color.Black : Color.White;
     this.isInCheck(this._playerColor, true);
     this._safeSquares = this.findSafeSquares();
+    this._isGameOver = this.isGameFinished();
   }
 
   private handlingSpecialMoves(
@@ -445,5 +465,125 @@ export class ChessBoard {
       return new Queen(this._playerColor);
     }
     return null;
+  }
+
+  private isGameFinished(): boolean {
+    if (this.insufficientMaterial()) {
+      this._gameOverMessage = 'Draw due to insufficient material';
+      return true;
+    }
+
+    if (!this._safeSquares.size) {
+      if (this._checkState.isInCheck) {
+        const prevPlayer: string =
+          this._playerColor === Color.White ? 'Black' : 'White';
+        this._gameOverMessage = prevPlayer + ' won by checkmate';
+        return true;
+      }
+      this._gameOverMessage = 'stalemate';
+      return true;
+    }
+
+    if (this.fiftyMoveCounter === 50) {
+      this._gameOverMessage = 'Draw due to fifty move rule.';
+      return true;
+    }
+    return false;
+  }
+
+  // insufficient material
+  private playerHasTwoKnights(
+    pieces: { piece: Piece; x: number; y: number }[]
+  ): boolean {
+    return pieces.filter((piece) => piece.piece instanceof Knight).length === 2;
+  }
+
+  private playerHasBishopsOfSameColor(
+    pieces: { piece: Piece; x: number; y: number }[]
+  ): boolean {
+    const bishops = pieces.filter((piece) => piece.piece instanceof Bishop);
+    const areAllBishopsOfSAmeColor =
+      new Set(
+        bishops.map((bishop) => ChessBoard.isSquareDark(bishop.x, bishop.y))
+      ).size === 1;
+    return bishops.length === pieces.length - 1 && areAllBishopsOfSAmeColor;
+  }
+
+  private insufficientMaterial(): boolean {
+    const whitePieces: { piece: Piece; x: number; y: number }[] = [];
+    const blackPieces: { piece: Piece; x: number; y: number }[] = [];
+
+    for (let x = 0; x < this.chessBoardSize; x++) {
+      for (let y = 0; y < this.chessBoardSize; y++) {
+        const piece: Piece | null = this.chessBoard[x][y];
+        if (!piece) continue;
+
+        if (piece.color === Color.White) whitePieces.push({ piece, x, y });
+        else blackPieces.push({ piece, x, y });
+      }
+    }
+
+    // King v King
+    if (whitePieces.length === 1 && blackPieces.length === 1) {
+      return true;
+    }
+
+    //King and Minor Piece v King
+    if (whitePieces.length === 1 && blackPieces.length === 2) {
+      return blackPieces.some(
+        (piece) =>
+          piece.piece instanceof Knight || piece.piece instanceof Bishop
+      );
+    } else if (whitePieces.length === 2 && blackPieces.length === 1) {
+      return whitePieces.some(
+        (piece) =>
+          piece.piece instanceof Knight || piece.piece instanceof Bishop
+      );
+    }
+
+    // If Both Bishops are of the same Color.
+    else if (whitePieces.length === 2 && blackPieces.length === 2) {
+      const whiteBishop = whitePieces.find(
+        (piece) => piece.piece instanceof Bishop
+      );
+      const blackBishop = blackPieces.find(
+        (piece) => piece.piece instanceof Bishop
+      );
+
+      if (whiteBishop && blackBishop) {
+        const areBishopsOfSameColor: boolean =
+          (ChessBoard.isSquareDark(whiteBishop.x, whiteBishop.y) &&
+            ChessBoard.isSquareDark(blackBishop.x, blackBishop.y)) ||
+          (!ChessBoard.isSquareDark(whiteBishop.x, whiteBishop.y) &&
+            !ChessBoard.isSquareDark(blackBishop.x, blackBishop.y));
+
+        return areBishopsOfSameColor;
+      }
+    }
+    // Two Knights and King v King
+    if (
+      (whitePieces.length === 3 &&
+        blackPieces.length === 1 &&
+        this.playerHasTwoKnights(whitePieces)) ||
+      (whitePieces.length === 1 &&
+        blackPieces.length === 3 &&
+        this.playerHasTwoKnights(blackPieces))
+    ) {
+      return true;
+    }
+
+    //King and Two or more bishops of same color v King
+    if (
+      (whitePieces.length >= 3 &&
+        blackPieces.length === 1 &&
+        this.playerHasBishopsOfSameColor(whitePieces)) ||
+      (whitePieces.length === 1 &&
+        blackPieces.length >= 3 &&
+        this.playerHasBishopsOfSameColor(blackPieces))
+    ) {
+      return true;
+    }
+
+    return false;
   }
 }

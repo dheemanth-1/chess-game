@@ -24,7 +24,9 @@
       />
     </div>
   </div>
-
+  <h2 *ngIf="gameOverMessage" class="game-over-message">
+    {{ gameOverMessage }}
+  </h2>
   <div *ngIf="isPromotionActive" class="promotion-dialog">
     <img
       *ngFor="let piece of promotionPieces()"

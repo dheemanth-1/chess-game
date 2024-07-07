@@ -23,12 +23,16 @@ export class ChessBoardComponent {
   public pieceImagePaths = pieceImagePaths;
 
   private chessBoard = new ChessBoard();
-  public chessBoardView: (FENChar | null)[][] = this.chessBoard.chessBoarrdView;
+  public chessBoardView: (FENChar | null)[][] = this.chessBoard.chessBoardView;
   public get playerColor(): Color {
     return this.chessBoard.playerColor;
   }
   public get safeSqares(): SafeSquares {
     return this.chessBoard.safeSquares;
+  }
+
+  public get gameOverMessage(): undefined | string {
+    return this.chessBoard.gameOverMessage;
   }
 
   private selectedSquare: SelectedSquare = { piece: null };
@@ -106,6 +110,7 @@ export class ChessBoardComponent {
   }
 
   public selectingPiece(x: number, y: number): void {
+    if (this.gameOverMessage !== undefined) return;
     const piece: FENChar | null = this.chessBoardView[x][y];
     if (!piece) return;
     if (this.isWrongPieceSelected(piece)) return;
@@ -153,7 +158,7 @@ export class ChessBoardComponent {
     newY: number
   ): void {
     this.chessBoard.move(prevX, prevY, newX, newY, this.promotedPiece);
-    this.chessBoardView = this.chessBoard.chessBoarrdView;
+    this.chessBoardView = this.chessBoard.chessBoardView;
     this.checkState = this.chessBoard.checkState;
     this.lastMove = this.chessBoard.lastMove;
     this.unmarkingPreviouslySelectedAndSafeSquares();
