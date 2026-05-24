@@ -1,4 +1,11 @@
-import { Component } from '@angular/core';
+import {
+  Component,
+  inject,
+  Inject,
+  OnDestroy,
+  OnInit,
+  PLATFORM_ID,
+} from '@angular/core';
 import { ChessBoard } from '../../chess-logic/chess-board';
 import {
   CheckState,
@@ -8,9 +15,15 @@ import {
   LastMove,
   SafeSquares,
   pieceImagePaths,
+  GameHistory,
+  MoveList,
+  MoveType,
 } from '../../chess-logic/models';
-import { CommonModule } from '@angular/common';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { SelectedSquare } from './models';
+import { ChessBoardService } from './chess-board.service';
+import { filter, fromEvent, Subscription, tap } from 'rxjs';
+import { FENConverter } from '../../chess-logic/FENConverter';
 
 @Component({
   selector: 'chess-board',
@@ -19,10 +32,10 @@ import { SelectedSquare } from './models';
   templateUrl: './chess-board.component.html',
   styleUrl: './chess-board.component.css',
 })
-export class ChessBoardComponent {
+export class ChessBoardComponent implements OnInit, OnDestroy {
   public pieceImagePaths = pieceImagePaths;
 
-  private chessBoard = new ChessBoard();
+  protected chessBoard = new ChessBoard();
   public chessBoardView: (FENChar | null)[][] = this.chessBoard.chessBoardView;
   public get playerColor(): Color {
     return this.chessBoard.playerColor;
@@ -43,6 +56,14 @@ export class ChessBoardComponent {
 
   private checkState: CheckState = this.chessBoard.checkState;
 
+  public get moveList(): MoveList {
+    return this.chessBoard.moveList;
+  }
+  public get gameHistory(): GameHistory {
+    return this.chessBoard.gameHistory;
+  }
+  public gameHistoryPointer: number = 0;
+
   // properties for pawn promotion
   public isPromotionActive: boolean = false;
   private promotionCoords: Coords | null = null;
@@ -62,6 +83,53 @@ export class ChessBoardComponent {
           FENChar.BlackRook,
         ];
   }
+  public flipMode: boolean = false;
+  private subscriptions$ = new Subscription();
+  protected platformId = inject(PLATFORM_ID);
+  constructor(protected chessBoardService: ChessBoardService) {}
+
+  public ngOnInit(): void {
+    if (isPlatformBrowser(this.platformId)) {
+      const keyEventSubscription$: Subscription = fromEvent<KeyboardEvent>(
+        document,
+        'keyup',
+      )
+        .pipe(
+          filter(
+            (event) => event.key === 'ArrowRight' || event.key === 'ArrowLeft',
+          ),
+          tap((event) => {
+            switch (event.key) {
+              case 'ArrowRight':
+                if (this.gameHistoryPointer === this.gameHistory.length - 1)
+                  return;
+                this.gameHistoryPointer++;
+                break;
+              case 'ArrowLeft':
+                if (this.gameHistoryPointer === 0) return;
+                this.gameHistoryPointer--;
+                break;
+              default:
+                break;
+            }
+
+            this.showPreviousPosition(this.gameHistoryPointer);
+          }),
+        )
+        .subscribe();
+
+      this.subscriptions$.add(keyEventSubscription$);
+    }
+  }
+
+  public ngOnDestroy(): void {
+    this.subscriptions$.unsubscribe();
+    this.chessBoardService.chessBoardState$.next(FENConverter.initalPosition);
+  }
+
+  public flipboard(): void {
+    this.flipMode = !this.flipMode;
+  }
 
   public isSquareDark(x: number, y: number): boolean {
     return ChessBoard.isSquareDark(x, y);
@@ -74,7 +142,7 @@ export class ChessBoardComponent {
 
   public isSquareSafeForSelectedPiece(x: number, y: number): boolean {
     return this.pieceSafeSquares.some(
-      (coords) => coords.x === x && coords.y === y
+      (coords) => coords.x === x && coords.y === y,
     );
   }
 
@@ -148,20 +216,23 @@ export class ChessBoardComponent {
     }
 
     const { x: prevX, y: prevY } = this.selectedSquare;
-    this.updateBoard(prevX, prevY, newX, newY);
+    this.updateBoard(prevX, prevY, newX, newY, this.promotedPiece);
   }
 
-  private updateBoard(
+  protected updateBoard(
     prevX: number,
     prevY: number,
     newX: number,
-    newY: number
+    newY: number,
+    promotedPiece: FENChar | null,
   ): void {
-    this.chessBoard.move(prevX, prevY, newX, newY, this.promotedPiece);
+    this.chessBoard.move(prevX, prevY, newX, newY, promotedPiece);
     this.chessBoardView = this.chessBoard.chessBoardView;
     this.checkState = this.chessBoard.checkState;
     this.lastMove = this.chessBoard.lastMove;
     this.unmarkingPreviouslySelectedAndSafeSquares();
+    this.chessBoardService.chessBoardState$.next(this.chessBoard.boardAsFEN);
+    this.gameHistoryPointer++;
   }
 
   public promotePiece(piece: FENChar): void {
@@ -169,11 +240,22 @@ export class ChessBoardComponent {
     this.promotedPiece = piece;
     const { x: newX, y: newY } = this.promotionCoords;
     const { x: prevX, y: prevY } = this.selectedSquare;
-    this.updateBoard(prevX, prevY, newX, newY);
+    this.updateBoard(prevX, prevY, newX, newY, this.promotedPiece);
   }
 
   public clossPawnPromotionDialog(): void {
     this.unmarkingPreviouslySelectedAndSafeSquares();
+  }
+
+  private markLastMoveAndCheckState(
+    lastMove: LastMove | undefined,
+    checkState: CheckState,
+  ): void {
+    this.lastMove = lastMove;
+    this.checkState = checkState;
+
+    if (this.lastMove) this.moveSound(this.lastMove.moveType);
+    else this.moveSound(new Set<MoveType>([MoveType.BasicMove]));
   }
 
   public move(x: number, y: number): void {
@@ -187,5 +269,30 @@ export class ChessBoardComponent {
       (isWhitePieceSelected && this.playerColor === Color.Black) ||
       (!isWhitePieceSelected && this.playerColor === Color.White)
     );
+  }
+
+  public showPreviousPosition(moveIndex: number): void {
+    const { board, checkState, lastMove } = this.gameHistory[moveIndex];
+    this.chessBoardView = board;
+    this.markLastMoveAndCheckState(lastMove, checkState);
+    this.gameHistoryPointer = moveIndex;
+  }
+
+  private moveSound(moveType: Set<MoveType>): void {
+    const moveSound = new Audio('assets/sound/move.mp3');
+
+    if (moveType.has(MoveType.Promotion))
+      moveSound.src = 'assets/sound/promote.mp3';
+    else if (moveType.has(MoveType.Capture))
+      moveSound.src = 'assets/sound/capture.mp3';
+    else if (moveType.has(MoveType.Castling))
+      moveSound.src = 'assets/sound/castling.mp3';
+
+    if (moveType.has(MoveType.CheckMate))
+      moveSound.src = 'assets/sound/checkmate.mp3';
+    else if (moveType.has(MoveType.Check))
+      moveSound.src = 'assets/sound/check.mp3';
+
+    moveSound.play();
   }
 }

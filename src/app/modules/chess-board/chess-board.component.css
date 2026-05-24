@@ -11,6 +11,11 @@
   transform: rotate(180deg);
 }
 
+.flip-button {
+  margin: 35px;
+  border-radius: 10%;
+}
+
 .row {
   display: flex;
   flex-direction: row;
@@ -63,7 +68,8 @@
 }
 
 .selected-square {
-  box-shadow: inset rgba(60, 70, 85, 0.5) 0px 0px 40px 0px,
+  box-shadow:
+    inset rgba(60, 70, 85, 0.5) 0px 0px 40px 0px,
     inset rgba(60, 70, 85, 0.5) 0px 0px 40px 0px,
     inset rgba(0, 0, 0, 1) 0px 0px 36px -24px;
 }
@@ -78,13 +84,15 @@
 }
 
 .king-in-check {
-  box-shadow: inset rgb(179, 21, 0) 0px 0px 40px 0px,
+  box-shadow:
+    inset rgb(179, 21, 0) 0px 0px 40px 0px,
     inset rgb(163, 11, 0) 0px 0px 40px 0px,
     inset rgba(0, 0, 0, 1) 0px 0px 36px -24px;
 }
 
 .last-move {
-  box-shadow: inset rgb(6, 179, 0) 0px 0px 40px 0px,
+  box-shadow:
+    inset rgb(6, 179, 0) 0px 0px 40px 0px,
     inset rgb(6, 179, 0) 0px 0px 40px 0px,
     inset rgba(0, 0, 0, 1) 0px 0px 36px -24px;
 }

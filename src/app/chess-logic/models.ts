@@ -48,6 +48,7 @@ export type LastMove = {
   prevY: number;
   currX: number;
   currY: number;
+  moveType: Set<MoveType>;
 };
 
 type KingChecked = {
@@ -61,3 +62,20 @@ type KingNotChecked = {
 };
 
 export type CheckState = KingChecked | KingNotChecked;
+
+export enum MoveType {
+  Capture,
+  Castling,
+  Promotion,
+  Check,
+  CheckMate,
+  BasicMove,
+}
+
+export type MoveList = [string, string?][];
+
+export type GameHistory = {
+  lastMove: LastMove | undefined;
+  checkState: CheckState;
+  board: (FENChar | null)[][];
+}[];
