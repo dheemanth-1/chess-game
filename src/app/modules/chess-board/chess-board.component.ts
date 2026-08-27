@@ -24,11 +24,12 @@ import { SelectedSquare } from './models';
 import { ChessBoardService } from './chess-board.service';
 import { filter, fromEvent, Subscription, tap } from 'rxjs';
 import { FENConverter } from '../../chess-logic/FENConverter';
+import { MoveListComponent } from '../../move-list/move-list.component';
 
 @Component({
   selector: 'chess-board',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, MoveListComponent],
   templateUrl: './chess-board.component.html',
   styleUrl: './chess-board.component.css',
 })
@@ -230,6 +231,10 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
     this.chessBoardView = this.chessBoard.chessBoardView;
     this.checkState = this.chessBoard.checkState;
     this.lastMove = this.chessBoard.lastMove;
+    this.markLastMoveAndCheckState(
+      this.chessBoard.lastMove,
+      this.chessBoard.checkState,
+    );
     this.unmarkingPreviouslySelectedAndSafeSquares();
     this.chessBoardService.chessBoardState$.next(this.chessBoard.boardAsFEN);
     this.gameHistoryPointer++;

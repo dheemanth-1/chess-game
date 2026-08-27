@@ -29,11 +29,24 @@ export class EngineService {
   }
   private promotedPiece(piece: string | undefined): FENChar | null {
     if (!piece) return null;
-    if (piece === 'n') return FENChar.BlackKnight;
-    if (piece === 'b') return FENChar.BlackBishop;
-    if (piece === 'r') return FENChar.BlackRook;
-    return FENChar.BlackQueen;
+    const computerColor: Color = this.computerConfiguration$.value.color;
+    if (piece === 'n')
+      return computerColor === Color.White
+        ? FENChar.WhiteKnight
+        : FENChar.BlackKnight;
+    if (piece === 'b')
+      return computerColor === Color.White
+        ? FENChar.WhiteBishop
+        : FENChar.BlackBishop;
+    if (piece === 'r')
+      return computerColor === Color.White
+        ? FENChar.WhiteRook
+        : FENChar.BlackRook;
+    return computerColor === Color.White
+      ? FENChar.WhiteQueen
+      : FENChar.BlackQueen;
   }
+
   private moveFromStockfishString(move: string): ChessMove {
     const prevY = this.convertColumnLetterToYCoord(move[0]);
     const prevX = Number(move[1]) - 1;
@@ -46,9 +59,9 @@ export class EngineService {
   public getBestMove(fen: string): Observable<ChessMove> {
     const body: EngineQueryParams = {
       fen,
-      depth: +this.currentDepth(),
+      depth: this.computerConfiguration$.value.level,
     };
-    console.log(body);
+    console.log('Sending request to wrapper:', body);
     return this.http.post<EngineResponse>(this.api, body).pipe(
       switchMap((response) => {
         console.log('Engine response:', response);

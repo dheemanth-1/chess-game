@@ -25,3 +25,11 @@ export type ComputerConfiguration = {
   color: Color;
   level: number;
 };
+
+export const stockfishEvals: Readonly<Record<number, number>> = {
+  1: 1,
+  2: 2,
+  3: 3,
+  4: 4,
+  5: 5,
+};

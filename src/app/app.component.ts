@@ -7,7 +7,7 @@ import { DepthSelectComponent } from './depth-select/depth-select.component';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, ChessBoardComponent, NavMenuComponent],
+  imports: [NavMenuComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css',
 })
